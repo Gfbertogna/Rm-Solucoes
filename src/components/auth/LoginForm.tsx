@@ -108,7 +108,7 @@ const LoginForm = () => {
                 
                 <Button 
                   type="submit" 
-                  className="w-full"
+                  className="w-full bg-green-700 hover:bg-green-800 text-white font-semibold transition-colors duration-300 shadow-md"
                   disabled={isLoading}
                 >
                   {isLoading ? (

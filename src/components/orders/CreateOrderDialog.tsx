@@ -91,6 +91,7 @@ const CreateOrderDialog: React.FC<CreateOrderDialogProps> = ({ open, onOpenChang
 
   const canSetSaleValue = profile?.role === 'admin';
   const canAssignWorker = profile?.role !== 'worker';
+ 
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>

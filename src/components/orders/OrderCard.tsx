@@ -33,7 +33,7 @@ const OrderCard = ({ order, onView, onEdit, onDelete }: OrderCardProps) => {
   const isAdmin = profile?.role === 'admin';
   const isManager = profile?.role === 'manager';
   const canEdit = isAdmin || isManager;
-  const canDelete = isAdmin;
+  const canDelete = isAdmin || isManager;
 
   const getStatusLabel = (status: string) => {
     const statusMap = {

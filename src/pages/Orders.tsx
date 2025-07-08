@@ -75,7 +75,8 @@ const Orders = () => {
   const canCreateOrder = profile?.role !== 'worker' || profile?.role === 'worker';
   const isAdmin = profile?.role === 'admin';
   const isManager = profile?.role === 'manager';
-  const canManageOrders = isAdmin || isManager;
+  const isWorker = profile?.role === 'worker';
+  const canManageOrders = isAdmin || isManager || isWorker;
 
   const handleEditOrder = (order: ServiceOrder & { assigned_worker?: { name: string } }) => {
     setSelectedOrder(order);

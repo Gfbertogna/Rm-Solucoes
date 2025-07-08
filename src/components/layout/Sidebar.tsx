@@ -5,7 +5,7 @@ import {
   Calculator, Settings, LogOut, CheckSquare, ChevronLeft, ChevronRight,
   BarChart3
 } from 'lucide-react';
-import Logo from '@/assets/logo.png'; // ✅ logo importado
+import Logo from '@/assets/Logo_sistema_Oficial.jpg';
 import { useAuth } from '@/contexts/AuthContext';
 import { Button } from '@/components/ui/button';
 
