@@ -6,6 +6,7 @@ import { Plus, FileText, ShoppingCart } from 'lucide-react';
 import { useBudgets } from '@/hooks/useBudgets';
 import CreateBudgetDialog from '@/components/budgets/CreateBudgetDialog';
 import BudgetDetailsDialog from '@/components/budgets/BudgetDetailsDialog';
+import { BudgetFilters } from '@/components/budgets/BudgetFilters';
 import { BudgetPDFGenerator } from '@/components/budgets/BudgetPDFGenerator';
 import { toast } from 'sonner';
 
@@ -68,7 +69,11 @@ const Budgets = () => {
         </Button>
       </div>
 
-  
+      <BudgetFilters
+        filters={filters}
+        onFiltersChange={setFilters}
+        onClearFilters={clearFilters}
+      />
 
       {isLoading ? (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
