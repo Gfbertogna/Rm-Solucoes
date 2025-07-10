@@ -1,34 +1,51 @@
-// TaskManagement.tsx
-import React, { useState, useEffect } from 'react';
-import { useQuery, useQueryClient } from '@tanstack/react-query';
+import React, { useState } from 'react';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
-import { Card } from '@/components/ui/card';
+import {
+  Card,
+  CardContent,
+} from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { Textarea } from '@/components/ui/textarea';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { Plus, Edit, Trash2 } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { toast } from 'sonner';
-import { ServiceOrderTask } from '@/types/database';
+import { ServiceOrderTask, TaskPriority, TaskStatus } from '@/types/database';
 
 interface TaskManagementProps {
   serviceOrderId: string;
 }
 
-interface ActiveTimer {
-  logId: string;
-  startTime: string; // ISO string
-}
-
 const TaskManagement = ({ serviceOrderId }: TaskManagementProps) => {
   const { profile } = useAuth();
-  const [activeTimers, setActiveTimers] = useState<{ [taskId: string]: ActiveTimer }>({});
+  const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false);
+  const [editingTask, setEditingTask] = useState(null);
+  const [formData, setFormData] = useState({
+    title: '',
+    description: '',
+    assigned_worker_id: '',
+    priority: 'medium' as TaskPriority,
+    estimated_hours: '',
+    status: 'pending' as TaskStatus,
+    status_details: '',
+  });
+
   const queryClient = useQueryClient();
 
-  const { data: tasks = [], isLoading: tasksLoading } = useQuery({
+  const { data: tasks = [], isLoading } = useQuery({
     queryKey: ['service-order-tasks', serviceOrderId],
     queryFn: async () => {
       const { data, error } = await supabase
         .from('service_order_tasks')
-        .select(`*, assigned_worker:profiles!assigned_worker_id(name)`)
+        .select(`
+          *,
+          assigned_worker:profiles!assigned_worker_id(name)
+        `)
         .eq('service_order_id', serviceOrderId)
         .order('created_at', { ascending: false });
 
@@ -37,101 +54,143 @@ const TaskManagement = ({ serviceOrderId }: TaskManagementProps) => {
     },
   });
 
-  // Busca timers abertos do usuário para as tarefas
-  useEffect(() => {
-    async function loadActiveTimers() {
-      if (!profile?.id || tasks.length === 0) return;
+  const { data: workers = [] } = useQuery({
+    queryKey: ['workers'],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('profiles')
+        .select('id, name')
+        .eq('role', 'worker');
 
-      const { data: openLogs, error } = await supabase
-        .from('task_time_logs')
-        .select('id, task_id, start_time')
-        .eq('worker_id', profile.id)
-        .is('end_time', null)
-        .in('task_id', tasks.map(t => t.id));
+      if (error) throw error;
+      return data || [];
+    },
+  });
 
-      if (error) {
-        toast.error('Erro ao carregar timers ativos: ' + error.message);
-        return;
-      }
+  const createTaskMutation = useMutation({
+    mutationFn: async (taskData: Partial<ServiceOrderTask>) => {
+      const { data, error } = await supabase
+        .from('service_order_tasks')
+        .insert({
+          service_order_id: serviceOrderId,
+          title: taskData.title || '',
+          description: taskData.description,
+          assigned_worker_id: taskData.assigned_worker_id,
+          status: taskData.status || 'pending',
+          status_details: taskData.status_details,
+          priority: taskData.priority || 'medium',
+          estimated_hours: taskData.estimated_hours,
+          created_by: profile?.id,
+        })
+        .select()
+        .single();
 
-      const timers: { [taskId: string]: ActiveTimer } = {};
-      openLogs?.forEach(log => {
-        if (log.task_id && log.id && log.start_time) {
-          timers[log.task_id] = { logId: log.id, startTime: log.start_time };
-        }
-      });
+      if (error) throw error;
+      return data;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['service-order-tasks', serviceOrderId] });
+      toast.success('Tarefa criada com sucesso!');
+      setIsCreateDialogOpen(false);
+      resetForm();
+    },
+    onError: (error: any) => {
+      toast.error('Erro ao criar tarefa: ' + error.message);
+    },
+  });
 
-      setActiveTimers(timers);
-    }
+  const updateTaskMutation = useMutation({
+    mutationFn: async ({ id, ...updates }: Partial<ServiceOrderTask> & { id: string }) => {
+      const { data, error } = await supabase
+        .from('service_order_tasks')
+        .update(updates)
+        .eq('id', id)
+        .select()
+        .single();
 
-    loadActiveTimers();
-  }, [profile?.id, tasks]);
+      if (error) throw error;
+      return data;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['service-order-tasks', serviceOrderId] });
+      toast.success('Tarefa atualizada com sucesso!');
+      setEditingTask(null);
+      resetForm();
+    },
+    onError: (error: any) => {
+      toast.error('Erro ao atualizar tarefa: ' + error.message);
+    },
+  });
 
-  const handleStartTimer = async (taskId: string) => {
-    const now = new Date().toISOString();
+  const deleteTaskMutation = useMutation({
+    mutationFn: async (taskId: string) => {
+      const { error } = await supabase
+        .from('service_order_tasks')
+        .delete()
+        .eq('id', taskId);
 
-    const { data, error } = await supabase
-      .from('task_time_logs')
-      .insert({
-        task_id: taskId,
-        worker_id: profile?.id,
-        start_time: now,
-      })
-      .select()
-      .single();
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['service-order-tasks', serviceOrderId] });
+      toast.success('Tarefa excluída com sucesso!');
+    },
+    onError: (error: any) => {
+      toast.error('Erro ao excluir tarefa: ' + error.message);
+    },
+  });
 
-    if (!error && data?.id) {
-      setActiveTimers((prev) => ({
-        ...prev,
-        [taskId]: { logId: data.id, startTime: now }
-      }));
-      toast.success('Contagem iniciada!');
-      queryClient.invalidateQueries(['task-time-logs', taskId]);
-    } else {
-      toast.error('Erro ao iniciar contagem: ' + error?.message);
-    }
+  const createTask = createTaskMutation.mutate;
+  const updateTask = updateTaskMutation.mutate;
+  const deleteTask = deleteTaskMutation.mutate;
+  const isCreating = createTaskMutation.isPending;
+  const isUpdating = updateTaskMutation.isPending;
+  const isDeleting = deleteTaskMutation.isPending;
+
+  const resetForm = () => {
+    setFormData({
+      title: '',
+      description: '',
+      assigned_worker_id: '',
+      priority: 'medium',
+      estimated_hours: '',
+      status: 'pending',
+      status_details: '',
+    });
   };
 
-  const handleStopTimer = async (taskId: string) => {
-    const timer = activeTimers[taskId];
-    if (!timer) return;
-
-    const { data: logData, error: fetchError } = await supabase
-      .from('task_time_logs')
-      .select('start_time')
-      .eq('id', timer.logId)
-      .single();
-
-    if (fetchError || !logData?.start_time) {
-      toast.error('Erro ao buscar horário de início: ' + fetchError?.message);
-      return;
-    }
-
-    const start = new Date(logData.start_time).getTime();
-    const end = new Date().getTime();
-    const duration = (end - start) / 1000 / 60 / 60; // em horas
-
-    const { error: updateError } = await supabase
-      .from('task_time_logs')
-      .update({
-        end_time: new Date().toISOString(),
-        hours_worked: duration,
-      })
-      .eq('id', timer.logId);
-
-    if (updateError) {
-      toast.error('Erro ao pausar contagem: ' + updateError.message);
-      return;
-    }
-
-    setActiveTimers((prev) => {
-      const copy = { ...prev };
-      delete copy[taskId];
-      return copy;
+  const handleEdit = (task: any) => {
+    setEditingTask(task);
+    setFormData({
+      title: task.title,
+      description: task.description || '',
+      assigned_worker_id: task.assigned_worker_id || '',
+      priority: task.priority,
+      estimated_hours: task.estimated_hours?.toString() || '',
+      status: task.status,
+      status_details: task.status_details || '',
     });
+  };
 
-    toast.success('Contagem pausada!');
-    queryClient.invalidateQueries(['task-time-logs', taskId]);
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    
+    const taskData = {
+      title: formData.title,
+      description: formData.description || null,
+      assigned_worker_id: formData.assigned_worker_id || null,
+      priority: formData.priority,
+      estimated_hours: formData.estimated_hours ? parseFloat(formData.estimated_hours) : null,
+      status: formData.status,
+      status_details: formData.status_details || null,
+      created_by: profile?.id,
+    };
+
+    if (editingTask) {
+      updateTask({ id: editingTask.id, ...taskData });
+    } else {
+      createTask(taskData);
+    }
   };
 
   const getStatusColor = (status: string) => {
@@ -144,6 +203,16 @@ const TaskManagement = ({ serviceOrderId }: TaskManagementProps) => {
     }
   };
 
+  const getStatusText = (status: string) => {
+    switch (status) {
+      case 'pending': return 'Pendente';
+      case 'in_progress': return 'Em Andamento';
+      case 'completed': return 'Concluída';
+      case 'cancelled': return 'Cancelada';
+      default: return status;
+    }
+  };
+
   const getPriorityColor = (priority: string) => {
     switch (priority) {
       case 'low': return 'text-green-500';
@@ -153,11 +222,32 @@ const TaskManagement = ({ serviceOrderId }: TaskManagementProps) => {
     }
   };
 
-  if (tasksLoading) return <p>Carregando tarefas...</p>;
+  const getPriorityText = (priority: string) => {
+    switch (priority) {
+      case 'low': return 'Baixa';
+      case 'medium': return 'Média';
+      case 'high': return 'Alta';
+      default: return priority;
+    }
+  };
+
+  const canManage = profile && ['admin', 'manager'].includes(profile.role);
+
+  if (isLoading) {
+    return <p>Carregando tarefas...</p>;
+  }
 
   return (
     <div className="space-y-4">
-      <h3 className="text-lg font-semibold">Tarefas</h3>
+      <div className="flex justify-between items-center">
+        <h3 className="text-lg font-semibold">Tarefas</h3>
+        {canManage && (
+          <Button onClick={() => setIsCreateDialogOpen(true)} size="sm">
+            <Plus size={16} />
+            Nova Tarefa
+          </Button>
+        )}
+      </div>
 
       <div className="space-y-2">
         {tasks.map((task) => (
@@ -166,151 +256,276 @@ const TaskManagement = ({ serviceOrderId }: TaskManagementProps) => {
               <div className="flex-1">
                 <div className="flex items-center gap-2 mb-2">
                   <h4 className="font-medium">{task.title}</h4>
-                  <Badge className={getStatusColor(task.status)}>{task.status}</Badge>
-                  <Badge variant="outline" className={getPriorityColor(task.priority)}>{task.priority}</Badge>
+                  <Badge className={getStatusColor(task.status)}>
+                    {getStatusText(task.status)}
+                  </Badge>
+                  <Badge variant="outline" className={getPriorityColor(task.priority)}>
+                    {getPriorityText(task.priority)}
+                  </Badge>
                 </div>
-
-                <p className="text-sm text-gray-600 mb-2">{task.description}</p>
-
-                <p className="text-xs text-gray-500 mb-2">
-                  Responsável: {task.assigned_worker?.name || 'Não atribuído'}
-                </p>
-
-                {/* Horas acumuladas (finalizadas + timer ativo) */}
-                <TimeTrackerDisplay
-                  taskId={task.id}
-                  activeTimer={activeTimers[task.id]}
-                />
-
-                {/* Botões iniciar/pausar */}
-                {profile?.role === 'worker' && profile.id === task.assigned_worker_id && (
-                  <div className="flex gap-2 mt-2">
-                    <Button
-                      size="sm"
-                      onClick={() => handleStartTimer(task.id)}
-                      disabled={!!activeTimers[task.id]}
-                    >
-                      Iniciar
-                    </Button>
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      onClick={() => handleStopTimer(task.id)}
-                      disabled={!activeTimers[task.id]}
-                    >
-                      Pausar
-                    </Button>
+                
+                {task.description && (
+                  <p className="text-sm text-gray-600 mb-2">{task.description}</p>
+                )}
+                
+                {task.status_details && (
+                  <div className="bg-blue-50 border border-blue-200 rounded p-2 mb-2">
+                    <p className="text-sm text-blue-800">
+                      <strong>Status:</strong> {task.status_details}
+                    </p>
                   </div>
+                )}
+                
+                <div className="flex items-center gap-4 text-xs text-gray-500">
+                  {task.assigned_worker?.name && (
+                    <span>Responsável: {task.assigned_worker.name}</span>
+                  )}
+                  {task.estimated_hours && (
+                    <span>Estimativa: {task.estimated_hours}h</span>
+                  )}
+                </div>
+              </div>
+              
+              <div className="flex gap-2">
+                {canManage && (
+                  <>
+                    <Button variant="ghost" size="sm" onClick={() => handleEdit(task)}>
+                      <Edit size={16} />
+                    </Button>
+                    <Button 
+                      variant="ghost" 
+                      size="sm" 
+                      onClick={() => deleteTask(task.id)}
+                      disabled={isDeleting}
+                    >
+                      <Trash2 size={16} />
+                    </Button>
+                  </>
                 )}
               </div>
             </div>
           </Card>
         ))}
       </div>
+
+      {/* Create Dialog */}
+      <Dialog open={isCreateDialogOpen} onOpenChange={setIsCreateDialogOpen}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>Criar Nova Tarefa</DialogTitle>
+          </DialogHeader>
+          <form onSubmit={handleSubmit} className="space-y-4">
+            <div>
+              <Label htmlFor="title">Título</Label>
+              <Input
+                id="title"
+                value={formData.title}
+                onChange={(e) => setFormData({ ...formData, title: e.target.value })}
+                required
+              />
+            </div>
+            
+            <div>
+              <Label htmlFor="description">Descrição</Label>
+              <Textarea
+                id="description"
+                value={formData.description}
+                onChange={(e) => setFormData({ ...formData, description: e.target.value })}
+              />
+            </div>
+            
+            <div>
+              <Label htmlFor="status_details">Detalhes do Status</Label>
+              <Textarea
+                id="status_details"
+                value={formData.status_details}
+                onChange={(e) => setFormData({ ...formData, status_details: e.target.value })}
+                placeholder="Informações adicionais sobre o status da tarefa..."
+              />
+            </div>
+            
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <Label htmlFor="priority">Prioridade</Label>
+                <Select value={formData.priority} onValueChange={(value: TaskPriority) => setFormData({ ...formData, priority: value })}>
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="low">Baixa</SelectItem>
+                    <SelectItem value="medium">Média</SelectItem>
+                    <SelectItem value="high">Alta</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              
+              <div>
+                <Label htmlFor="status">Status</Label>
+                <Select value={formData.status} onValueChange={(value: TaskStatus) => setFormData({ ...formData, status: value })}>
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="pending">Pendente</SelectItem>
+                    <SelectItem value="in_progress">Em Andamento</SelectItem>
+                    <SelectItem value="completed">Concluída</SelectItem>
+                    <SelectItem value="cancelled">Cancelada</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+            
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <Label htmlFor="assigned_worker">Responsável</Label>
+                <Select value={formData.assigned_worker_id} onValueChange={(value) => setFormData({ ...formData, assigned_worker_id: value })}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Selecione..." />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {workers.map((worker) => (
+                      <SelectItem key={worker.id} value={worker.id}>
+                        {worker.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              
+              <div>
+                <Label htmlFor="estimated_hours">Horas Estimadas</Label>
+                <Input
+                  id="estimated_hours"
+                  type="number"
+                  step="0.5"
+                  value={formData.estimated_hours}
+                  onChange={(e) => setFormData({ ...formData, estimated_hours: e.target.value })}
+                />
+              </div>
+            </div>
+            
+            <div className="flex justify-end gap-2">
+              <Button type="button" variant="outline" onClick={() => setIsCreateDialogOpen(false)}>
+                Cancelar
+              </Button>
+              <Button type="submit" disabled={isCreating}>
+                {isCreating ? 'Criando...' : 'Criar Tarefa'}
+              </Button>
+            </div>
+          </form>
+        </DialogContent>
+      </Dialog>
+
+      {/* Edit Dialog */}
+      <Dialog open={!!editingTask} onOpenChange={() => setEditingTask(null)}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>Editar Tarefa</DialogTitle>
+          </DialogHeader>
+          <form onSubmit={handleSubmit} className="space-y-4">
+            {/* Same form fields as create dialog */}
+            <div>
+              <Label htmlFor="edit-title">Título</Label>
+              <Input
+                id="edit-title"
+                value={formData.title}
+                onChange={(e) => setFormData({ ...formData, title: e.target.value })}
+                required
+              />
+            </div>
+            
+            <div>
+              <Label htmlFor="edit-description">Descrição</Label>
+              <Textarea
+                id="edit-description"
+                value={formData.description}
+                onChange={(e) => setFormData({ ...formData, description: e.target.value })}
+              />
+            </div>
+            
+            <div>
+              <Label htmlFor="edit-status_details">Detalhes do Status</Label>
+              <Textarea
+                id="edit-status_details"
+                value={formData.status_details}
+                onChange={(e) => setFormData({ ...formData, status_details: e.target.value })}
+                placeholder="Informações adicionais sobre o status da tarefa..."
+              />
+            </div>
+            
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <Label htmlFor="edit-priority">Prioridade</Label>
+                <Select value={formData.priority} onValueChange={(value: TaskPriority) => setFormData({ ...formData, priority: value })}>
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="low">Baixa</SelectItem>
+                    <SelectItem value="medium">Média</SelectItem>
+                    <SelectItem value="high">Alta</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              
+              <div>
+                <Label htmlFor="edit-status">Status</Label>
+                <Select value={formData.status} onValueChange={(value: TaskStatus) => setFormData({ ...formData, status: value })}>
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="pending">Pendente</SelectItem>
+                    <SelectItem value="in_progress">Em Andamento</SelectItem>
+                    <SelectItem value="completed">Concluída</SelectItem>
+                    <SelectItem value="cancelled">Cancelada</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+            
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <Label htmlFor="edit-assigned_worker">Responsável</Label>
+                <Select value={formData.assigned_worker_id} onValueChange={(value) => setFormData({ ...formData, assigned_worker_id: value })}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Selecione..." />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {workers.map((worker) => (
+                      <SelectItem key={worker.id} value={worker.id}>
+                        {worker.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              
+              <div>
+                <Label htmlFor="edit-estimated_hours">Horas Estimadas</Label>
+                <Input
+                  id="edit-estimated_hours"
+                  type="number"
+                  step="0.5"
+                  value={formData.estimated_hours}
+                  onChange={(e) => setFormData({ ...formData, estimated_hours: e.target.value })}
+                />
+              </div>
+            </div>
+            
+            <div className="flex justify-end gap-2">
+              <Button type="button" variant="outline" onClick={() => setEditingTask(null)}>
+                Cancelar
+              </Button>
+              <Button type="submit" disabled={isUpdating}>
+                {isUpdating ? 'Atualizando...' : 'Atualizar Tarefa'}
+              </Button>
+            </div>
+          </form>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 };
 
 export default TaskManagement;
-
-// Componente que soma todas as horas já registradas + tempo do timer ativo
-const TimeTrackerDisplay = ({
-  taskId,
-  activeTimer,
-}: {
-  taskId: string;
-  activeTimer?: ActiveTimer;
-}) => {
-  const { data: logs = [], isLoading } = useQuery({
-    queryKey: ['task-time-logs', taskId],
-    queryFn: async () => {
-      const { data, error } = await supabase
-        .from('task_time_logs')
-        .select('*')
-        .eq('task_id', taskId);
-
-      if (error) throw error;
-      return data || [];
-    },
-  });
-
-  const [activeElapsedSeconds, setActiveElapsedSeconds] = React.useState(0);
-
-  React.useEffect(() => {
-    if (!activeTimer) {
-      setActiveElapsedSeconds(0);
-      return;
-    }
-
-    const start = new Date(activeTimer.startTime).getTime();
-
-    const interval = setInterval(() => {
-      const now = Date.now();
-      setActiveElapsedSeconds(Math.floor((now - start) / 1000));
-    }, 1000);
-
-    return () => clearInterval(interval);
-  }, [activeTimer]);
-
-  if (isLoading) return <p>Carregando horas...</p>;
-
-  // Função para formatar segundos para hh:mm:ss
-  const formatSeconds = (totalSeconds: number) => {
-    const hours = Math.floor(totalSeconds / 3600);
-    const minutes = Math.floor((totalSeconds % 3600) / 60);
-    const seconds = Math.floor(totalSeconds % 60);
-    return `${hours.toString().padStart(2, '0')}:` +
-           `${minutes.toString().padStart(2, '0')}:` +
-           `${seconds.toString().padStart(2, '0')}`;
-  };
-
-  // Logs finalizados (com end_time)
-  const finishedLogs = logs.filter(log => log.end_time);
-
-  // Soma total de segundos dos logs finalizados (priorizando hours_worked)
-  const totalSecondsFromFinishedLogs = finishedLogs.reduce((sum, log) => {
-    if (log.hours_worked != null) {
-      return sum + log.hours_worked * 3600;
-    }
-    if (log.start_time && log.end_time) {
-      const start = new Date(log.start_time).getTime();
-      const end = new Date(log.end_time).getTime();
-      return sum + (end - start) / 1000;
-    }
-    return sum;
-  }, 0);
-
-  // Total geral incluindo o log ativo
-  const totalSeconds = totalSecondsFromFinishedLogs + activeElapsedSeconds;
-
-  return (
-    <div className="text-sm text-gray-700 font-mono space-y-1">
-      {/* Mostrar cada intervalo (log) finalizado */}
-      {finishedLogs.map((log) => {
-        let seconds = 0;
-        if (log.hours_worked != null) {
-          seconds = log.hours_worked * 3600;
-        } else if (log.start_time && log.end_time) {
-          seconds = (new Date(log.end_time).getTime() - new Date(log.start_time).getTime()) / 1000;
-        }
-        return (
-          <p key={log.id}>
-            Horas Trabalhadas: {formatSeconds(seconds)}
-          </p>
-        );
-      })}
-
-      {/* Mostrar log ativo em tempo real, se houver */}
-      {activeTimer && (
-        <p>
-          Horas Trabalhando Agora: {formatSeconds(activeElapsedSeconds)}
-        </p>
-      )}
-
-      {/* Mostrar total acumulado */}
-      <p className="font-semibold mt-1 border-t pt-1">
-        Total Acumulado: {formatSeconds(totalSeconds)}
-      </p>
-    </div>
-  );
-};

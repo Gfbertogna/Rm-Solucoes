@@ -1,4 +1,3 @@
-
 export interface Profile {
   id: string;
   name: string;
@@ -86,6 +85,7 @@ export interface ServiceOrderTask {
   status_details?: string;
   priority: TaskPriority;
   estimated_hours?: number;
+  deadline?: string;
   created_by?: string;
   created_at: string;
   updated_at: string;

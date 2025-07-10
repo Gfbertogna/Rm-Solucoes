@@ -18,6 +18,7 @@ import Reports from "./pages/Reports";
 import Settings from "./pages/Settings";
 import MyTasks from "./pages/MyTasks";
 import NotFound from "./pages/NotFound";
+import TaskManagement from '@/pages/TaskManagement';
 
 const queryClient = new QueryClient();
 
@@ -95,6 +96,8 @@ function App() {
                   </ProtectedRoute>
                 } 
               />
+
+        
               <Route 
                 path="/employees" 
                 element={
@@ -151,6 +154,10 @@ function App() {
                   </ProtectedRoute>
                 } 
               />
+              <Route path="/tasks/:serviceOrderId"
+               element={<TaskManagement />} 
+              />
+              
               <Route path="*" element={<NotFound />} />
             </Routes>
           </BrowserRouter>

@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
@@ -91,7 +90,6 @@ const CreateOrderDialog: React.FC<CreateOrderDialogProps> = ({ open, onOpenChang
 
   const canSetSaleValue = profile?.role === 'admin';
   const canAssignWorker = profile?.role !== 'worker';
- 
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
