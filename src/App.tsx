@@ -155,9 +155,12 @@ function App() {
                 } 
               />
               <Route path="/tasks/:serviceOrderId"
-               element={<TaskManagement />} 
+               element={
+               <ProtectedRoute>
+                <TaskManagement />
+               </ProtectedRoute>
+               }
               />
-              
               <Route path="*" element={<NotFound />} />
             </Routes>
           </BrowserRouter>
