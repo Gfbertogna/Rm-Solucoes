@@ -2,17 +2,22 @@ import React, { useState } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { Plus, FileText, ShoppingCart } from 'lucide-react';
+import { Plus, FileText, ShoppingCart, Trash2 } from 'lucide-react';
 import { useBudgets } from '@/hooks/useBudgets';
 import CreateBudgetDialog from '@/components/budgets/CreateBudgetDialog';
 import BudgetDetailsDialog from '@/components/budgets/BudgetDetailsDialog';
+import EditBudgetDialog from '@/components/budgets/EditBudgetDialog';
 import { BudgetFilters } from '@/components/budgets/BudgetFilters';
 import { BudgetPDFGenerator } from '@/components/budgets/BudgetPDFGenerator';
+import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 
 const Budgets = () => {
   const [selectedBudget, setSelectedBudget] = useState<any>(null);
   const [showCreateDialog, setShowCreateDialog] = useState(false);
+  const [showDetailsDialog, setShowDetailsDialog] = useState(false);
+  const [showEditDialog, setShowEditDialog] = useState(false);
+
   const [filters, setFilters] = useState({
     search: '',
     status: '',
@@ -47,6 +52,16 @@ const Budgets = () => {
 
   const handleCreateOrder = (budgetId: string) => {
     createOrderFromBudget(budgetId);
+  };
+
+  const handleDelete = async (id: string) => {
+    const { error } = await supabase.from('budgets').delete().eq('id', id);
+    if (error) {
+      toast.error('Erro ao excluir orçamento: ' + error.message);
+    } else {
+      toast.success('Orçamento excluído com sucesso!');
+      location.reload();
+    }
   };
 
   const clearFilters = () => {
@@ -94,9 +109,18 @@ const Budgets = () => {
                     <CardTitle className="text-lg">{budget.budget_number}</CardTitle>
                     <p className="text-sm text-gray-600">{budget.client_name}</p>
                   </div>
-                  <Badge className={getStatusColor(budget.status)}>
-                    {getStatusLabel(budget.status)}
-                  </Badge>
+                  <div className="flex items-center space-x-2">
+                    <Badge className={getStatusColor(budget.status)}>
+                      {getStatusLabel(budget.status)}
+                    </Badge>
+                    <Button
+                      size="icon"
+                      variant="ghost"
+                      onClick={() => handleDelete(budget.id)}
+                    >
+                      <Trash2 className="w-4 h-4 text-red-500" />
+                    </Button>
+                  </div>
                 </div>
               </CardHeader>
               <CardContent>
@@ -117,23 +141,40 @@ const Budgets = () => {
                       Válido até: {new Date(budget.valid_until).toLocaleDateString('pt-BR')}
                     </p>
                   )}
-                  <div className="flex justify-between items-center pt-2">
-                    <div className="flex space-x-2">
+                  <div className="flex flex-wrap justify-between items-center gap-2 pt-2">
+                    <div className="flex flex-wrap gap-2 w-full sm:w-auto">
                       <Button
                         variant="outline"
                         size="sm"
-                        onClick={() => setSelectedBudget(budget)}
+                        onClick={() => {
+                          setSelectedBudget(budget);
+                          setShowDetailsDialog(true);
+                        }}
                       >
                         <FileText className="w-4 h-4 mr-1" />
                         Ver
                       </Button>
+
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => {
+                          setSelectedBudget(budget);
+                          setShowEditDialog(true);
+                        }}
+                      >
+                        ✏️ Editar
+                      </Button>
+
                       <BudgetPDFGenerator budget={budget} />
                     </div>
+
                     {budget.status === 'sent' && (
                       <Button
                         size="sm"
                         onClick={() => handleCreateOrder(budget.id)}
                         disabled={isCreatingOrder}
+                        className="whitespace-nowrap hover:bg-green-600 hover:text-white transition-colors duration-200"
                       >
                         <ShoppingCart className="w-4 h-4 mr-1" />
                         Criar OS
@@ -155,12 +196,11 @@ const Budgets = () => {
               Nenhum orçamento encontrado
             </h3>
             <p className="text-gray-500 mb-4">
-              {Object.values(filters).some(f => f) 
+              {Object.values(filters).some((f) => f)
                 ? 'Tente ajustar os filtros de busca.'
-                : 'Comece criando seu primeiro orçamento.'
-              }
+                : 'Comece criando seu primeiro orçamento.'}
             </p>
-            {!Object.values(filters).some(f => f) && (
+            {!Object.values(filters).some((f) => f) && (
               <Button onClick={() => setShowCreateDialog(true)}>
                 <Plus className="w-4 h-4 mr-2" />
                 Criar Primeiro Orçamento
@@ -170,15 +210,26 @@ const Budgets = () => {
         </Card>
       )}
 
-      <CreateBudgetDialog
-        open={showCreateDialog}
-        onOpenChange={setShowCreateDialog}
-      />
+      <CreateBudgetDialog open={showCreateDialog} onOpenChange={setShowCreateDialog} />
 
-      {selectedBudget && (
+      {selectedBudget && showDetailsDialog && (
         <BudgetDetailsDialog
           budget={selectedBudget}
-          onClose={() => setSelectedBudget(null)}
+          onClose={() => {
+            setShowDetailsDialog(false);
+            setSelectedBudget(null);
+          }}
+        />
+      )}
+
+      {selectedBudget && showEditDialog && (
+        <EditBudgetDialog
+          open={showEditDialog}
+          onOpenChange={(open) => {
+            setShowEditDialog(open);
+            if (!open) setSelectedBudget(null);
+          }}
+          budget={selectedBudget}
         />
       )}
     </div>

@@ -1,10 +1,25 @@
 import React from 'react';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import {
+  Card,
+  CardContent,
+  CardHeader,
+  CardTitle,
+} from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
 import { Button } from '@/components/ui/button';
 import { Calendar } from '@/components/ui/calendar';
-import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from '@/components/ui/popover';
 import { CalendarIcon } from 'lucide-react';
 import { format } from 'date-fns';
 
@@ -23,7 +38,7 @@ interface BudgetFiltersProps {
 export const BudgetFilters: React.FC<BudgetFiltersProps> = ({
   filters,
   onFiltersChange,
-  onClearFilters
+  onClearFilters,
 }) => {
   const [dateFrom, setDateFrom] = React.useState<Date>();
   const [dateTo, setDateTo] = React.useState<Date>();
@@ -32,7 +47,7 @@ export const BudgetFilters: React.FC<BudgetFiltersProps> = ({
     setDateFrom(date);
     onFiltersChange({
       ...filters,
-      dateFrom: date ? date.toISOString().split('T')[0] : ''
+      dateFrom: date ? date.toISOString().split('T')[0] : '',
     });
   };
 
@@ -40,12 +55,15 @@ export const BudgetFilters: React.FC<BudgetFiltersProps> = ({
     setDateTo(date);
     onFiltersChange({
       ...filters,
-      dateTo: date ? date.toISOString().split('T')[0] : ''
+      dateTo: date ? date.toISOString().split('T')[0] : '',
     });
   };
 
   const handleStatusChange = (value: string) => {
-    onFiltersChange({ ...filters, status: value === 'all' ? '' : value });
+    onFiltersChange({
+      ...filters,
+      status: value === 'all' ? '' : value,
+    });
   };
 
   return (
@@ -60,7 +78,9 @@ export const BudgetFilters: React.FC<BudgetFiltersProps> = ({
             <Input
               placeholder="Número ou cliente..."
               value={filters.search}
-              onChange={(e) => onFiltersChange({ ...filters, search: e.target.value })}
+              onChange={(e) =>
+                onFiltersChange({ ...filters, search: e.target.value })
+              }
             />
           </div>
 
@@ -75,11 +95,11 @@ export const BudgetFilters: React.FC<BudgetFiltersProps> = ({
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="all">Todos</SelectItem>
-                <SelectItem value="draft">Rascunho</SelectItem>
+                <SelectItem value="pendente">Pendente</SelectItem>
+                <SelectItem value="aprovado">Aprovado</SelectItem>
+                <SelectItem value="reprovado">Reprovado</SelectItem>
                 <SelectItem value="sent">Enviado</SelectItem>
-                <SelectItem value="approved">Aprovado</SelectItem>
-                <SelectItem value="rejected">Rejeitado</SelectItem>
-                <SelectItem value="expired">Expirado</SelectItem>
+                
               </SelectContent>
             </Select>
           </div>
@@ -89,7 +109,9 @@ export const BudgetFilters: React.FC<BudgetFiltersProps> = ({
             <Input
               placeholder="Nome do cliente..."
               value={filters.clientName}
-              onChange={(e) => onFiltersChange({ ...filters, clientName: e.target.value })}
+              onChange={(e) =>
+                onFiltersChange({ ...filters, clientName: e.target.value })
+              }
             />
           </div>
 
@@ -98,9 +120,14 @@ export const BudgetFilters: React.FC<BudgetFiltersProps> = ({
               <label className="text-sm font-medium">Data Inicial</label>
               <Popover>
                 <PopoverTrigger asChild>
-                  <Button variant="outline" className="w-full justify-start text-left font-normal">
+                  <Button
+                    variant="outline"
+                    className="w-full justify-start text-left font-normal"
+                  >
                     <CalendarIcon className="mr-2 h-4 w-4" />
-                    {dateFrom ? format(dateFrom, "dd/MM/yyyy") : "Selecionar"}
+                    {dateFrom
+                      ? format(dateFrom, 'dd/MM/yyyy')
+                      : 'Selecionar'}
                   </Button>
                 </PopoverTrigger>
                 <PopoverContent className="w-auto p-0">
@@ -118,9 +145,14 @@ export const BudgetFilters: React.FC<BudgetFiltersProps> = ({
               <label className="text-sm font-medium">Data Final</label>
               <Popover>
                 <PopoverTrigger asChild>
-                  <Button variant="outline" className="w-full justify-start text-left font-normal">
+                  <Button
+                    variant="outline"
+                    className="w-full justify-start text-left font-normal"
+                  >
                     <CalendarIcon className="mr-2 h-4 w-4" />
-                    {dateTo ? format(dateTo, "dd/MM/yyyy") : "Selecionar"}
+                    {dateTo
+                      ? format(dateTo, 'dd/MM/yyyy')
+                      : 'Selecionar'}
                   </Button>
                 </PopoverTrigger>
                 <PopoverContent className="w-auto p-0">

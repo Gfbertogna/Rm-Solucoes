@@ -9,56 +9,77 @@ import { supabase } from '@/integrations/supabase/client';
 
 interface BudgetPDFGeneratorProps {
   budget: Budget & { budget_items: BudgetItem[] };
+  serviceImages?: string[];
+  signatureImage?: string;
 }
 
-export const BudgetPDFGenerator: React.FC<BudgetPDFGeneratorProps> = ({ budget }) => {
-  const generatePDFDocument = () => {
+const logopath = '/logonum.png';
+const assinaturaPath = '/AssinaturaMarcioOficial.png';
+
+const loadImageAsBase64 = (url: string): Promise<string> => {
+  return new Promise((resolve, reject) => {
+    const img = new Image();
+    img.crossOrigin = 'anonymous';
+    img.onload = () => {
+      const canvas = document.createElement('canvas');
+      canvas.width = img.width;
+      canvas.height = img.height;
+      canvas.getContext('2d')?.drawImage(img, 0, 0);
+      resolve(canvas.toDataURL('image/png'));
+    };
+    img.onerror = reject;
+    img.src = url;
+  });
+};
+
+export const BudgetPDFGenerator: React.FC<BudgetPDFGeneratorProps> = ({ budget, serviceImages }) => {
+  const generatePDFDocument = async () => {
     const doc = new jsPDF();
     const pageWidth = doc.internal.pageSize.width;
-    let y = 20;
+    let y = 15;
 
-    // Cabeçalho da empresa
+    // Logo e cabeçalho
+    try {
+      const logoBase64 = await loadImageAsBase64(logopath);
+      doc.addImage(logoBase64, 'PNG', 20, 10, 30, 30);
+    } catch (e) {
+      console.warn('Erro ao carregar o logo', e);
+    }
+
     doc.setFontSize(12);
     doc.setFont(undefined, 'bold');
-    doc.text('RMSoluções', 20, y);
+    doc.text('RMSoluções', 60, y);
     doc.setFont(undefined, 'normal');
-    doc.text('MARCIO JOSE LASTORIA 26654674880', 20, y += 7);
-    doc.text('CNPJ: 19.957.948/0001-68', 20, y += 7);
-    doc.text('Avenida Ângelo Franzini, 2438, barracão', 20, y += 7);
-    doc.text('Residencial Bosque de Versalles, Araras-SP', 20, y += 7);
-    doc.text('CEP 13609-391', 20, y += 7);
-    doc.text('Email: rmsoldas@hotmail.com', 20, y += 7);
-    doc.text('Telefone: (19) 99652-4173', 20, y += 7);
+    doc.text('MARCIO JOSE LASTORIA 26654674880 | Email: rmsoldas@hotmail.com', 60, y += 6);
+    doc.text('CNPJ: 19.957.948/0001-68                        | Telefone: +55 (19) 99652-4173', 60, y += 6);
+    doc.text('Avenida Ângelo Franzini, 2438, barracão', 60, y += 6);
+    doc.text('Residencial Bosque de Versalles, Araras-SP', 60, y += 6);
+    doc.text('CEP 13609-391', 60, y += 6);
+    doc.text(`Data: ${new Date(budget.created_at).toLocaleDateString('pt-BR')}`, 60, y += 6);
     y += 10;
 
-    // Título
-    doc.setFontSize(18);
-    doc.setFont(undefined, 'bold');
-    doc.text(`Orçamento ${budget.budget_number}`, pageWidth / 2, y, { align: 'center' });
-    y += 15;
-
-    // Data
     doc.setFontSize(12);
-    doc.setFont(undefined, 'normal');
-    doc.text(`Data: ${new Date(budget.created_at).toLocaleDateString('pt-BR')}`, 20, y);
+    doc.setFont(undefined, 'bold');
+    doc.text('RMSoluções - Serralheria / Automação / Caldeiraria Agrícola', 20, y);
+    y += 10;
+
+    doc.setFontSize(16);
+    doc.text(`Orçamento ${budget.budget_number}`, pageWidth / 2, y, { align: 'center' });
     y += 10;
 
     // Cliente
-    doc.setFontSize(14);
+    doc.setFontSize(12);
     doc.setFont(undefined, 'bold');
-    doc.text('Dados do Cliente', 20, y);
-    y += 8;
-
-    doc.setFontSize(10);
+    doc.text('Cliente:', 20, y);
     doc.setFont(undefined, 'normal');
-    doc.text(`Nome: ${budget.client_name}`, 20, y);
+    doc.text(`${budget.client_name}`, 45, y);
     y += 6;
     doc.text(`Contato: ${budget.client_contact}`, 20, y);
     y += 6;
     doc.text(`Endereço: ${budget.client_address}`, 20, y);
     y += 10;
 
-    // Tabela de Itens
+    // Tabela de itens
     const items = budget.budget_items.map((item) => [
       item.service_name,
       'und.',
@@ -71,7 +92,7 @@ export const BudgetPDFGenerator: React.FC<BudgetPDFGeneratorProps> = ({ budget }
       startY: y,
       head: [['Descrição', 'Unidade', 'Preço unitário', 'Qtd.', 'Preço']],
       body: items,
-      styles: { fontSize: 9 },
+      styles: { fontSize: 10 },
     });
 
     y = doc.lastAutoTable.finalY + 10;
@@ -82,11 +103,11 @@ export const BudgetPDFGenerator: React.FC<BudgetPDFGeneratorProps> = ({ budget }
     doc.text(`TOTAL: R$ ${budget.total_value.toFixed(2)}`, pageWidth - 20, y, { align: 'right' });
     y += 10;
 
-    // Meios de pagamento
+    // Pagamento
     doc.setFontSize(12);
     doc.setFont(undefined, 'bold');
     doc.text('Pagamento', 20, y);
-    y += 7;
+    y += 6;
 
     doc.setFontSize(10);
     doc.setFont(undefined, 'normal');
@@ -95,10 +116,10 @@ export const BudgetPDFGenerator: React.FC<BudgetPDFGeneratorProps> = ({ budget }
     doc.text('PIX: 19957948000168', 20, y);
     y += 10;
 
-    // Dados bancários
+    // Bancários
     doc.setFont(undefined, 'bold');
     doc.text('Dados Bancários', 20, y);
-    y += 7;
+    y += 6;
 
     doc.setFont(undefined, 'normal');
     doc.text('Banco: Banco do Brasil', 20, y);
@@ -109,27 +130,66 @@ export const BudgetPDFGenerator: React.FC<BudgetPDFGeneratorProps> = ({ budget }
     y += 6;
     doc.text('Tipo de conta: Corrente', 20, y);
     y += 6;
-    doc.text('Titular: 19.957.948/0001-68', 20, y);
-    y += 15;
+    doc.text('Titular da conta (CPF/CNPJ): 19.957.948/0001-68', 20, y);
+    y += 10;
 
-    // Rodapé
+    // Fotos dos serviços
+    if (serviceImages && serviceImages.length > 0) {
+      doc.setFontSize(12);
+      doc.setFont(undefined, 'bold');
+      doc.text('Fotos dos serviços:', 20, y);
+      y += 5;
+
+      for (const imageUrl of serviceImages) {
+        try {
+          const img = await loadImageAsBase64(imageUrl);
+          doc.addImage(img, 'JPEG', 20, y, 60, 45);
+          y += 50;
+        } catch (e) {
+          console.warn('Erro ao carregar imagem', e);
+        }
+      }
+    }
+
+    // Rodapé com assinatura centralizada
     doc.setFontSize(10);
     doc.setFont(undefined, 'italic');
-    doc.text('Agro não pode parar... Indústria não pode parar...', 20, y);
-    y += 10;
+    doc.text('Agro não pode parar... Indústria não pode parar...', pageWidth / 2, y += 10, {
+      align: 'center',
+    });
+      
+    
+    doc.setFont(undefined, 'bold');
+    doc.text(`Araras, ${new Date().toLocaleDateString('pt-BR')}`, pageWidth / 2, y += 8, {
+      align: 'center',
+    });
+
+    try {
+      const assinaturaBase64 = await loadImageAsBase64(assinaturaPath);
+      const imgWidth = 50;
+      const imgHeight = 20;
+      const centerX = (pageWidth - imgWidth) / 2;
+      doc.addImage(assinaturaBase64, 'PNG', centerX, y += 5, imgWidth, imgHeight);
+    } catch (e) {
+      console.warn('Erro ao carregar assinatura', e);
+    }
+
+    doc.setDrawColor(0);
+    doc.setLineWidth(0.5);
+    doc.line(50, y + 25, pageWidth - 50, y + 25);
+
+    doc.setFont(undefined, 'bold');
+    doc.text('RMSoluções', pageWidth / 2, y + 32, { align: 'center' });
+
     doc.setFont(undefined, 'normal');
-    doc.text(`Araras, ${new Date().toLocaleDateString('pt-BR')}`, 20, y);
-    y += 7;
-    doc.text('RMSoluções', 20, y);
-    y += 7;
-    doc.text('Márcio Lastoria', 20, y);
+    doc.text('Márcio Lastoria', pageWidth / 2, y + 38, { align: 'center' });
 
     return doc;
   };
 
-  const handleDownloadPDF = () => {
+  const handleDownloadPDF = async () => {
     try {
-      const doc = generatePDFDocument();
+      const doc = await generatePDFDocument();
       doc.save(`orcamento_${budget.budget_number}.pdf`);
       toast.success('PDF baixado com sucesso!');
     } catch (error) {
@@ -140,7 +200,7 @@ export const BudgetPDFGenerator: React.FC<BudgetPDFGeneratorProps> = ({ budget }
 
   const sendPDFViaWhatsApp = async () => {
     try {
-      const doc = generatePDFDocument();
+      const doc = await generatePDFDocument();
       const blob = doc.output('blob');
       const fileName = `orcamentos/orcamento_${budget.budget_number.replace(/[^\w.-]/gi, '_')}.pdf`;
 
@@ -175,7 +235,7 @@ export const BudgetPDFGenerator: React.FC<BudgetPDFGeneratorProps> = ({ budget }
       </Button>
       <Button onClick={sendPDFViaWhatsApp} variant="outline" size="sm">
         <FileText className="w-4 h-4 mr-2" />
-        Enviar por WhatsApp
+        Enviar WhatsApp
       </Button>
     </div>
   );

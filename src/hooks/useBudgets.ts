@@ -29,7 +29,7 @@ export const useBudgets = (filters?: {
         query = query.or(`budget_number.ilike.%${filters.search}%,client_name.ilike.%${filters.search}%`);
       }
 
-      if (filters?.status) {
+      if (filters?.status ) {
         query = query.eq('status', filters.status);
       }
 

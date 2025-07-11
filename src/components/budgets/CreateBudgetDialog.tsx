@@ -20,7 +20,7 @@ interface CreateBudgetDialogProps {
 const CreateBudgetDialog: React.FC<CreateBudgetDialogProps> = ({ open, onOpenChange }) => {
   const { profile } = useAuth();
   const queryClient = useQueryClient();
-  
+
   const [formData, setFormData] = useState({
     client_id: '',
     client_name: '',
@@ -29,7 +29,7 @@ const CreateBudgetDialog: React.FC<CreateBudgetDialogProps> = ({ open, onOpenCha
     description: '',
     valid_until: '',
   });
-  
+
   const [items, setItems] = useState<Partial<BudgetItem>[]>([{
     service_name: '',
     description: '',
@@ -37,6 +37,8 @@ const CreateBudgetDialog: React.FC<CreateBudgetDialogProps> = ({ open, onOpenCha
     unit_price: 0,
     total_price: 0,
   }]);
+
+  const [isCreatingClient, setIsCreatingClient] = useState(false);
 
   const { data: clients = [] } = useQuery({
     queryKey: ['clients'],
@@ -82,6 +84,7 @@ const CreateBudgetDialog: React.FC<CreateBudgetDialogProps> = ({ open, onOpenCha
           valid_until: budgetData.valid_until || null,
           total_value: budgetData.total_value,
           created_by: profile?.id,
+          status: 'pendente',
         })
         .select()
         .single();
@@ -138,15 +141,26 @@ const CreateBudgetDialog: React.FC<CreateBudgetDialogProps> = ({ open, onOpenCha
   };
 
   const handleClientSelect = (clientId: string) => {
-    const client = clients.find(c => c.id === clientId);
-    if (client) {
-      setFormData({
-        ...formData,
-        client_id: clientId,
-        client_name: client.name,
-        client_contact: client.contact,
-        client_address: client.address,
-      });
+    if (clientId === 'new_client') {
+      setIsCreatingClient(true);
+      setFormData(prev => ({
+        ...prev,
+        client_id: '',
+        client_name: '',
+        client_contact: '',
+        client_address: '',
+      }));
+    } else {
+      const client = clients.find(c => c.id === clientId);
+      if (client) {
+        setFormData({
+          ...formData,
+          client_id: clientId,
+          client_name: client.name,
+          client_contact: client.contact,
+          client_address: client.address,
+        });
+      }
     }
   };
 
@@ -165,11 +179,11 @@ const CreateBudgetDialog: React.FC<CreateBudgetDialogProps> = ({ open, onOpenCha
   const updateItem = (index: number, field: string, value: any) => {
     const newItems = [...items];
     newItems[index] = { ...newItems[index], [field]: value };
-    
+
     if (field === 'quantity' || field === 'unit_price') {
       newItems[index].total_price = (newItems[index].quantity || 0) * (newItems[index].unit_price || 0);
     }
-    
+
     setItems(newItems);
   };
 
@@ -193,9 +207,37 @@ const CreateBudgetDialog: React.FC<CreateBudgetDialogProps> = ({ open, onOpenCha
     return items.reduce((sum, item) => sum + (item.total_price || 0), 0);
   };
 
+  const handleCreateClient = async () => {
+    try {
+      const { data: newClient } = await supabase
+        .from('clients')
+        .insert({
+          name: formData.client_name,
+          contact: formData.client_contact,
+          address: formData.client_address,
+        })
+        .select()
+        .single();
+
+      // Set new client as selected
+      setFormData({
+        ...formData,
+        client_id: newClient.id,
+        client_name: newClient.name,
+        client_contact: newClient.contact,
+        client_address: newClient.address,
+      });
+
+      setIsCreatingClient(false);
+      toast.success('Cliente criado com sucesso!');
+    } catch (error) {
+      toast.error('Erro ao criar cliente: ' + error.message);
+    }
+  };
+
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    
+
     const budgetData = {
       ...formData,
       total_value: getTotalValue(),
@@ -217,7 +259,7 @@ const CreateBudgetDialog: React.FC<CreateBudgetDialogProps> = ({ open, onOpenCha
         <DialogHeader>
           <DialogTitle>Criar Novo Orçamento</DialogTitle>
         </DialogHeader>
-        
+
         <form onSubmit={handleSubmit} className="space-y-6">
           <div className="grid grid-cols-2 gap-4">
             <div>
@@ -227,6 +269,7 @@ const CreateBudgetDialog: React.FC<CreateBudgetDialogProps> = ({ open, onOpenCha
                   <SelectValue placeholder="Selecione um cliente" />
                 </SelectTrigger>
                 <SelectContent>
+                  <SelectItem value="new_client">+ Cadastrar novo cliente</SelectItem>
                   {clients.map((client) => (
                     <SelectItem key={client.id} value={client.id}>
                       {client.name}
@@ -235,7 +278,7 @@ const CreateBudgetDialog: React.FC<CreateBudgetDialogProps> = ({ open, onOpenCha
                 </SelectContent>
               </Select>
             </div>
-            
+
             <div>
               <Label htmlFor="valid_until">Válido até</Label>
               <Input
@@ -257,7 +300,7 @@ const CreateBudgetDialog: React.FC<CreateBudgetDialogProps> = ({ open, onOpenCha
                 required
               />
             </div>
-            
+
             <div>
               <Label htmlFor="client_contact">Contato</Label>
               <Input
@@ -289,6 +332,7 @@ const CreateBudgetDialog: React.FC<CreateBudgetDialogProps> = ({ open, onOpenCha
             />
           </div>
 
+          {/* Itens do Orçamento */}
           <div>
             <div className="flex justify-between items-center mb-4">
               <Label>Itens do Orçamento</Label>
@@ -297,7 +341,7 @@ const CreateBudgetDialog: React.FC<CreateBudgetDialogProps> = ({ open, onOpenCha
                 Adicionar Item
               </Button>
             </div>
-            
+
             <div className="space-y-4">
               {items.map((item, index) => (
                 <div key={index} className="border rounded-lg p-4 space-y-4">
@@ -314,7 +358,8 @@ const CreateBudgetDialog: React.FC<CreateBudgetDialogProps> = ({ open, onOpenCha
                       </Button>
                     )}
                   </div>
-                  
+
+                  {/* Serviço, Descrição, Quantidade, Preço */}
                   <div className="grid grid-cols-2 gap-4">
                     <div>
                       <Label>Serviço</Label>
@@ -331,7 +376,7 @@ const CreateBudgetDialog: React.FC<CreateBudgetDialogProps> = ({ open, onOpenCha
                         </SelectContent>
                       </Select>
                     </div>
-                    
+
                     <div>
                       <Label>Descrição</Label>
                       <Input
@@ -340,7 +385,7 @@ const CreateBudgetDialog: React.FC<CreateBudgetDialogProps> = ({ open, onOpenCha
                       />
                     </div>
                   </div>
-                  
+
                   <div className="grid grid-cols-3 gap-4">
                     <div>
                       <Label>Quantidade</Label>
@@ -351,7 +396,7 @@ const CreateBudgetDialog: React.FC<CreateBudgetDialogProps> = ({ open, onOpenCha
                         onChange={(e) => updateItem(index, 'quantity', parseInt(e.target.value))}
                       />
                     </div>
-                    
+
                     <div>
                       <Label>Preço Unitário</Label>
                       <Input
@@ -361,7 +406,7 @@ const CreateBudgetDialog: React.FC<CreateBudgetDialogProps> = ({ open, onOpenCha
                         onChange={(e) => updateItem(index, 'unit_price', parseFloat(e.target.value))}
                       />
                     </div>
-                    
+
                     <div>
                       <Label>Total</Label>
                       <Input
@@ -378,11 +423,12 @@ const CreateBudgetDialog: React.FC<CreateBudgetDialogProps> = ({ open, onOpenCha
             </div>
           </div>
 
+          {/* Total do Orçamento */}
           <div className="flex justify-between items-center pt-4 border-t">
             <span className="text-lg font-bold">
               Total: R$ {getTotalValue().toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
             </span>
-            
+
             <div className="flex gap-2">
               <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
                 Cancelar
