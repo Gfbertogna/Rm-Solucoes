@@ -19,6 +19,8 @@ import Settings from "./pages/Settings";
 import MyTasks from "./pages/MyTasks";
 import NotFound from "./pages/NotFound";
 import TaskManagement from '@/pages/TaskManagement';
+import ServiceOrderCalls from "./pages/ServiceOrderCalls";
+
 
 const queryClient = new QueryClient();
 
@@ -161,8 +163,18 @@ function App() {
                </ProtectedRoute>
                }
               />
+
+              <Route path="/chamados"
+              element={
+                <ProtectedRoute>
+                  <ServiceOrderCalls />
+                </ProtectedRoute>
+                }
+              />
+
               <Route path="*" element={<NotFound />} />
             </Routes>
+
           </BrowserRouter>
           <Toaster />
           <Sonner />

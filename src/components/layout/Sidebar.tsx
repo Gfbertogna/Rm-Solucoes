@@ -3,7 +3,7 @@ import { NavLink } from 'react-router-dom';
 import {
   Home, ClipboardList, Users, UserCircle, Package,
   Calculator, Settings, LogOut, CheckSquare, ChevronLeft, ChevronRight,
-  BarChart3
+  BarChart3, Wrench
 } from 'lucide-react';
 import Logo from '@/assets/Logo_sistema_Oficial.jpg';
 import { useAuth } from '@/contexts/AuthContext';
@@ -34,6 +34,7 @@ const Sidebar = () => {
         { path: '/inventory', icon: Package, label: 'Estoque' },
         { path: '/employees', icon: Users, label: 'Funcionários' },
         { path: '/reports', icon: BarChart3, label: 'Relatórios' },
+        { path: '/chamados', icon: Wrench, label: 'Chamados' }, // 👈 Aqui está o novo item
         { path: '/settings', icon: Settings, label: 'Configurações' },
       ];
     }

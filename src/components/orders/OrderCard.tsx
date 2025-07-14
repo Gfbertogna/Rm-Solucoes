@@ -47,17 +47,22 @@ const OrderCard: React.FC<OrderCardProps> = ({ order, onEdit, onDelete, onView }
 
   const getStatusText = (status: string) => {
     const statusMap = {
-      'received': 'Recebida',
-      'pending': 'Pendente',
-      'planning': 'Planejamento',
-      'production': 'Produção',
-      'quality_control': 'Controle de Qualidade',
-      'ready_for_shipment': 'Pronta p/ Envio',
-      'in_transit': 'Em Trânsito',
-      'delivered': 'Entregue',
-      'invoiced': 'Faturada',
-      'completed': 'Concluída',
-      'cancelled': 'Cancelada'
+      received: 'Recebida',
+      pending: 'Pendente',
+      planning: 'Planejamento',
+      production: 'Produção',
+      quality_control: 'Controle de Qualidade',
+      ready_for_shipment: 'Pronta p/ Envio',
+      in_transit: 'Em Trânsito',
+      delivered: 'Entregue',
+      invoiced: 'Faturada',
+      completed: 'Concluída',
+      cancelled: 'Cancelada',
+      on_hold: 'Em espera',
+      stopped: 'Paralisada',
+      ready_for_pickup: 'Aguardando retirada',
+      awaiting_installation: 'Aguardando instalação',
+      to_invoice: 'Faturar',
     };
     return statusMap[status as keyof typeof statusMap] || status;
   };

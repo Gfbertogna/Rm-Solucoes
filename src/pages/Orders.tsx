@@ -160,14 +160,20 @@ const Orders = () => {
                 <SelectValue placeholder="Filtrar por status" />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="all">Todos os status</SelectItem>
-                <SelectItem value="received">Recebido / Em Análise</SelectItem>
-                <SelectItem value="pending">Pendente</SelectItem>
-                <SelectItem value="planning">Planejamento</SelectItem>
-                <SelectItem value="production">Em Produção</SelectItem>
-                <SelectItem value="quality_control">Controle de Qualidade</SelectItem>
-                <SelectItem value="completed">Finalizado</SelectItem>
-                <SelectItem value="cancelled">Cancelado</SelectItem>
+                <SelectContent>
+                  <SelectItem value="all">Todos os status</SelectItem>
+                  <SelectItem value="pending">Pendente</SelectItem>
+                  <SelectItem value="production">Em Produção</SelectItem>
+                  <SelectItem value="on_hold">Em Espera</SelectItem>
+                  <SelectItem value="stopped">Paralisado</SelectItem>
+                  <SelectItem value="quality_control">Controle de Qualidade</SelectItem>
+                  <SelectItem value="ready_for_pickup">Aguardando Retirada</SelectItem>
+                  <SelectItem value="awaiting_installation">Aguardando Instalação</SelectItem>
+                  <SelectItem value="to_invoice">Faturar</SelectItem>
+                  <SelectItem value="completed">Finalizado</SelectItem>
+                  <SelectItem value="cancelled">Cancelado</SelectItem>
+                </SelectContent>
+
               </SelectContent>
             </Select>
 

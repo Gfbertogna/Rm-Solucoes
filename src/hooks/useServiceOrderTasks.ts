@@ -143,9 +143,13 @@ export const useTimeTracking = (taskId: string) => {
       if (error) throw error;
       return data;
     },
-    onSuccess: () => {
+    onSuccess: async () => {
       queryClient.invalidateQueries({ queryKey: ['task-time-logs', taskId] });
       toast.success('Cronômetro iniciado!');
+      const { data: task } = await supabase.from('service_order_tasks').select('service_order_id').eq('id', taskId).single();
+      if (task?.service_order_id) {
+        await supabase.from('service_orders').update({ status: 'production' }).eq('id', task.service_order_id);
+      }
     },
   });
 
@@ -177,9 +181,42 @@ export const useTimeTracking = (taskId: string) => {
       if (error) throw error;
       return data;
     },
-    onSuccess: () => {
+    onSuccess: async (_, { id }) => {
       queryClient.invalidateQueries({ queryKey: ['task-time-logs', taskId] });
       toast.success('Tempo registrado com sucesso!');
+
+      const { data: task } = await supabase.from('service_order_tasks').select('service_order_id').eq('id', taskId).single();
+      const serviceOrderId = task?.service_order_id;
+      if (!serviceOrderId) return;
+
+      const { data: tasksInProduction, error } = await supabase
+        .from('service_order_tasks')
+        .select('id')
+        .eq('service_order_id', serviceOrderId)
+        .eq('status', 'production');
+
+      if (error || !tasksInProduction) return;
+
+      let allStopped = true;
+      for (const task of tasksInProduction) {
+        const { data: logs } = await supabase
+          .from('task_time_logs')
+          .select('id, end_time')
+          .eq('task_id', task.id);
+
+        const hasActive = logs?.some(log => log.end_time === null);
+        if (hasActive) {
+          allStopped = false;
+          break;
+        }
+      }
+
+      if (allStopped) {
+        await supabase
+          .from('service_orders')
+          .update({ status: 'stopped' })
+          .eq('id', serviceOrderId);
+      }
     },
   });
 
@@ -200,21 +237,14 @@ export const useServiceOrderImages = (serviceOrderId?: string, taskId?: string) 
     queryFn: async () => {
       let query = supabase
         .from('service_order_images')
-        .select(`
-          *,
-          uploaded_by_user:profiles!uploaded_by(name)
-        `);
+        .select(`*, uploaded_by_user:profiles!uploaded_by(name)`);
 
-      if (serviceOrderId) {
-        query = query.eq('service_order_id', serviceOrderId);
-      }
-      if (taskId) {
-        query = query.eq('task_id', taskId);
-      }
+      if (serviceOrderId) query = query.eq('service_order_id', serviceOrderId);
+      if (taskId) query = query.eq('task_id', taskId);
 
       const { data, error } = await query.order('created_at', { ascending: false });
-
       if (error) throw error;
+
       return data as (ServiceOrderImage & { uploaded_by_user: { name: string } })[];
     },
   });
@@ -262,87 +292,5 @@ export const useServiceOrderImages = (serviceOrderId?: string, taskId?: string) 
     images,
     uploadImage: uploadImageMutation.mutate,
     isUploading: uploadImageMutation.isPending,
-  };
-};
-
-export const useTaskProductUsage = (taskId: string) => {
-  const queryClient = useQueryClient();
-
-  const { data: productUsage = [] } = useQuery({
-    queryKey: ['task-product-usage', taskId],
-    queryFn: async () => {
-      const { data, error } = await supabase
-        .from('task_product_usage')
-        .select(`
-          *,
-          inventory_item:inventory_items(name, current_quantity),
-          created_by_user:profiles!created_by(name)
-        `)
-        .eq('task_id', taskId)
-        .order('created_at', { ascending: false });
-
-      if (error) throw error;
-      return data as (TaskProductUsage & { 
-        inventory_item: { name: string; current_quantity: number };
-        created_by_user?: { name: string };
-      })[];
-    },
-  });
-
-  const addProductUsageMutation = useMutation({
-    mutationFn: async ({ itemId, quantityUsed, createdBy }: { 
-      itemId: string; 
-      quantityUsed: number; 
-      createdBy?: string;
-    }) => {
-      const { data, error } = await supabase
-        .from('task_product_usage')
-        .insert({
-          task_id: taskId,
-          item_id: itemId,
-          quantity_used: quantityUsed,
-          created_by: createdBy,
-        })
-        .select()
-        .single();
-
-      if (error) throw error;
-      return data;
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['task-product-usage', taskId] });
-      queryClient.invalidateQueries({ queryKey: ['inventory-items'] });
-      toast.success('Uso de produto registrado com sucesso!');
-    },
-    onError: (error: any) => {
-      toast.error('Erro ao registrar uso: ' + error.message);
-    },
-  });
-
-  const removeProductUsageMutation = useMutation({
-    mutationFn: async (usageId: string) => {
-      const { error } = await supabase
-        .from('task_product_usage')
-        .delete()
-        .eq('id', usageId);
-
-      if (error) throw error;
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['task-product-usage', taskId] });
-      queryClient.invalidateQueries({ queryKey: ['inventory-items'] });
-      toast.success('Uso de produto removido com sucesso!');
-    },
-    onError: (error: any) => {
-      toast.error('Erro ao remover uso: ' + error.message);
-    },
-  });
-
-  return {
-    productUsage,
-    addProductUsage: addProductUsageMutation.mutate,
-    removeProductUsage: removeProductUsageMutation.mutate,
-    isAdding: addProductUsageMutation.isPending,
-    isRemoving: removeProductUsageMutation.isPending,
   };
 };

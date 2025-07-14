@@ -143,17 +143,41 @@ export interface InventoryMovement {
 }
 
 export type OrderStatus = 
-  | 'received' 
-  | 'pending' 
-  | 'planning' 
-  | 'production' 
-  | 'quality_control' 
-  | 'ready_for_shipment' 
-  | 'in_transit' 
-  | 'delivered' 
-  | 'invoiced' 
-  | 'completed' 
-  | 'cancelled';
+  | 'pending'               // Pendente
+  | 'production'            // Em produção
+  | 'on_hold'               // Em espera
+  | 'stopped'               // Paralisado
+  | 'quality_control'       // Controle de qualidade
+  | 'ready_for_pickup'      // Aguardando retirada
+  | 'awaiting_installation' // Aguardando instalação
+  | 'to_invoice'            // Faturar
+  | 'completed'             // Finalizado
+  | 'cancelled'; 
+
+  export const orderStatusLabels: Record<OrderStatus, string> = {
+  pending: 'Pendente',
+  production: 'Em produção',
+  on_hold: 'Em espera',
+  stopped: 'Paralisado',
+  quality_control: 'Controle de qualidade',
+  ready_for_pickup: 'Aguardando retirada',
+  awaiting_installation: 'Aguardando instalação',
+  to_invoice: 'Faturar',
+  completed: 'Finalizado',
+  cancelled: 'Cancelado',
+};
+
+export interface ServiceOrderCall {
+  id: string;
+  service_order_id: string;
+  reason: string;
+  resolved: boolean;
+  resolved_by?: string;
+  resolved_at?: string;
+  created_by?: string;
+  created_at: string;
+}
+
 
 export type BudgetStatus = 'draft' | 'sent' | 'approved' | 'rejected' | 'expired';
 
