@@ -1,9 +1,23 @@
-
-import { useState, useEffect } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { ServiceOrder, Profile } from '@/types/database';
 import { toast } from 'sonner';
+
+const getNextOrderNumber = async (): Promise<string> => {
+  const { data, error } = await supabase
+    .from('service_orders')
+    .select('order_number')
+    .order('created_at', { ascending: false })
+    .limit(1);
+
+  if (error) throw new Error('Erro ao buscar última ordem de serviço');
+
+  const lastOrderNumber = data?.[0]?.order_number || 'OS000';
+  const lastNumber = parseInt(lastOrderNumber.replace('OS', ''), 10);
+  const nextNumber = lastNumber + 1;
+
+  return `OS${String(nextNumber).padStart(3, '0')}`;
+};
 
 export const useServiceOrders = () => {
   const queryClient = useQueryClient();
@@ -21,7 +35,8 @@ export const useServiceOrders = () => {
         .order('created_at', { ascending: false });
 
       if (error) throw error;
-      return data as (ServiceOrder & { 
+
+      return data as (ServiceOrder & {
         assigned_worker?: { name: string };
         created_by_user?: { name: string };
       })[];
@@ -30,9 +45,8 @@ export const useServiceOrders = () => {
 
   const createOrderMutation = useMutation({
     mutationFn: async (orderData: Partial<ServiceOrder>) => {
-      // Gerar número da OS
-      const { data: orderNumber } = await supabase.rpc('generate_order_number');
-      
+      const orderNumber = await getNextOrderNumber();
+
       const { data, error } = await supabase
         .from('service_orders')
         .insert({
@@ -41,14 +55,16 @@ export const useServiceOrders = () => {
           client_contact: orderData.client_contact || '',
           client_address: orderData.client_address || '',
           service_description: orderData.service_description || '',
-          sale_value: orderData.sale_value,
-          status: orderData.status || 'received',
+          sale_value: orderData.sale_value || 0,
+          status: 'pending', // ou o status inicial que você deseja
           urgency: orderData.urgency || 'medium',
           assigned_worker_id: orderData.assigned_worker_id,
           deadline: orderData.deadline,
           client_id: orderData.client_id,
-          opening_date: orderData.opening_date,
+          opening_date: orderData.opening_date || new Date().toISOString(),
           created_by: orderData.created_by,
+          service_start_date: orderData.service_start_date || null, // se usar esse campo no filtro da fatura
+          service_end_date: orderData.service_end_date || null,
         })
         .select()
         .single();

@@ -21,7 +21,7 @@ export const useServiceOrderTasks = (serviceOrderId: string) => {
         .order('created_at', { ascending: false });
 
       if (error) throw error;
-      return data as (ServiceOrderTask & { 
+      return data as (ServiceOrderTask & {
         assigned_worker?: { name: string };
         created_by_user?: { name: string };
       })[];
@@ -116,10 +116,7 @@ export const useTimeTracking = (taskId: string) => {
     queryFn: async () => {
       const { data, error } = await supabase
         .from('task_time_logs')
-        .select(`
-          *,
-          worker:profiles!worker_id(name)
-        `)
+        .select(`*, worker:profiles!worker_id(name)`) 
         .eq('task_id', taskId)
         .order('created_at', { ascending: false });
 
@@ -146,9 +143,18 @@ export const useTimeTracking = (taskId: string) => {
     onSuccess: async () => {
       queryClient.invalidateQueries({ queryKey: ['task-time-logs', taskId] });
       toast.success('Cronômetro iniciado!');
-      const { data: task } = await supabase.from('service_order_tasks').select('service_order_id').eq('id', taskId).single();
+
+      const { data: task } = await supabase
+        .from('service_order_tasks')
+        .select('service_order_id')
+        .eq('id', taskId)
+        .single();
+
       if (task?.service_order_id) {
-        await supabase.from('service_orders').update({ status: 'production' }).eq('id', task.service_order_id);
+        await supabase
+          .from('service_orders')
+          .update({ status: 'production' })
+          .eq('id', task.service_order_id);
       }
     },
   });
@@ -185,36 +191,52 @@ export const useTimeTracking = (taskId: string) => {
       queryClient.invalidateQueries({ queryKey: ['task-time-logs', taskId] });
       toast.success('Tempo registrado com sucesso!');
 
-      const { data: task } = await supabase.from('service_order_tasks').select('service_order_id').eq('id', taskId).single();
+      const { data: task } = await supabase
+        .from('service_order_tasks')
+        .select('service_order_id')
+        .eq('id', taskId)
+        .single();
+
       const serviceOrderId = task?.service_order_id;
       if (!serviceOrderId) return;
 
-      const { data: tasksInProduction, error } = await supabase
+      const { data: allTasks } = await supabase
         .from('service_order_tasks')
-        .select('id')
-        .eq('service_order_id', serviceOrderId)
-        .eq('status', 'production');
+        .select('id, status')
+        .eq('service_order_id', serviceOrderId);
 
-      if (error || !tasksInProduction) return;
+      if (!allTasks) return;
 
-      let allStopped = true;
-      for (const task of tasksInProduction) {
+      let hasAnyActive = false;
+      let allCompleted = true;
+
+      for (const task of allTasks) {
         const { data: logs } = await supabase
           .from('task_time_logs')
-          .select('id, end_time')
+          .select('end_time')
           .eq('task_id', task.id);
 
-        const hasActive = logs?.some(log => log.end_time === null);
-        if (hasActive) {
-          allStopped = false;
-          break;
+        const taskHasActiveTimer = logs?.some(log => log.end_time === null);
+        if (taskHasActiveTimer) {
+          hasAnyActive = true;
+        }
+
+        if (task.status !== 'completed') {
+          allCompleted = false;
         }
       }
 
-      if (allStopped) {
+      if (!hasAnyActive) {
         await supabase
           .from('service_orders')
           .update({ status: 'stopped' })
+          .eq('id', serviceOrderId);
+      }
+
+      if (allCompleted) {
+        await supabase
+          .from('service_orders')
+          .update({ status: 'quality_control' })
           .eq('id', serviceOrderId);
       }
     },

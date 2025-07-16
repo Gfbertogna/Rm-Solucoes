@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -9,6 +9,7 @@ import { CreateTaskDialog } from '@/components/orders/CreateTaskDialog';
 import { TaskTimeTracker } from './TaskTimeTracker';
 import { ServiceOrderTimeReport } from './ServiceOrderTimeReport';
 import { ServiceOrderTask, TaskStatus } from '@/types/database';
+import { supabase } from '@/integrations/supabase/client';
 
 interface TaskListProps {
   serviceOrderId: string;
@@ -66,8 +67,23 @@ export const TaskList: React.FC<TaskListProps> = ({
 
   const canManageTasks = profile && ['admin', 'manager'].includes(profile.role);
 
-  const handleTaskStatusUpdate = (taskId: string, newStatus: TaskStatus) => {
-    updateTask({ id: taskId, status: newStatus });
+  const handleTaskStatusUpdate = async (taskId: string, newStatus: TaskStatus) => {
+    await updateTask({ id: taskId, status: newStatus });
+
+    if (newStatus === 'completed') {
+      const { data: remaining } = await supabase
+        .from('service_order_tasks')
+        .select('id')
+        .eq('service_order_id', serviceOrderId)
+        .neq('status', 'completed');
+
+      if (remaining?.length === 0) {
+        await supabase
+          .from('service_orders')
+          .update({ status: 'quality_control' })
+          .eq('id', serviceOrderId);
+      }
+    }
   };
 
   const toggleTaskExpand = (taskId: string) => {

@@ -178,6 +178,27 @@ export interface ServiceOrderCall {
   created_at: string;
 }
 
+interface Invoice {
+  id: string;
+  number: string;
+  client_id: string;
+  client_name: string;
+  start_date: string;
+  end_date: string;
+  total_value: number;
+  total_hours: number;
+  service_orders: {
+    id: string;
+    order_number: string;
+    sale_value: number;
+    total_hours: number;
+  }[];
+  extras?: {
+    description: string;
+    value: number;
+  }[];
+}
+
 
 export type BudgetStatus = 'draft' | 'sent' | 'approved' | 'rejected' | 'expired';
 

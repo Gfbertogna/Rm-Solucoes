@@ -20,6 +20,7 @@ import MyTasks from "./pages/MyTasks";
 import NotFound from "./pages/NotFound";
 import TaskManagement from '@/pages/TaskManagement';
 import ServiceOrderCalls from "./pages/ServiceOrderCalls";
+import InvoicePage from "./pages/InvoicesPage"; // ✅ Importação da tela de fatura
 
 
 const queryClient = new QueryClient();
@@ -171,6 +172,13 @@ function App() {
                 </ProtectedRoute>
                 }
               />
+
+              <Route path="/invoices" 
+              element={
+              <ProtectedRoute>
+                <InvoicePage />
+              </ProtectedRoute>} /> {/* ✅ Nova Rota */}
+
 
               <Route path="*" element={<NotFound />} />
             </Routes>
